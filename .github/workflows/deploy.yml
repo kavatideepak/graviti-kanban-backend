@@ -1,0 +1,33 @@
+name: Deploy backend
+
+# Auto-deploy on every push to main. You can also trigger it manually
+# from the Actions tab (workflow_dispatch).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd /root/kanban/backend
+            git fetch origin main
+            git reset --hard origin/main
+            npm ci
+            npm run db:migrate
+            pm2 restart kanban-server --update-env || pm2 start src/server.js --name kanban-server --time
+            pm2 save
+            echo "Backend deployed: $(git rev-parse --short HEAD)"
